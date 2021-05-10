@@ -1,0 +1,35 @@
+@startuml
+skinparam componentStyle uml2
+
+cloud "AWS Account" {
+    frame "SAML IDP" {
+        APIGW - [Lambda SAML Identity Provider]
+    }
+    database "Cognito" {
+            [User Pool]
+    }
+    frame "AWS VPC" {
+       [AWS ClientVPN]
+       [Site to Site VPN]
+    }
+}
+
+
+node "OnPrem" {
+    frame "Local Network" {
+        [OnPrem Firewalls]
+        [VLAN1 10.1.0.0/16]
+        [VLAN2 10.2.0.0/16]
+    }
+}
+
+node "UserLaptop" {
+    [AWS VPN Client]
+}
+
+[APIGW] <--> [AWS ClientVPN] 
+[Lambda SAML Identity Provider] -down-> [User Pool]
+[AWS ClientVPN]  <.....> [AWS VPN Client]
+[Site to Site VPN] <...up...> [OnPrem Firewalls]
+
+@enduml

@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cognito
+
+Parameters:
+  AuthName:
+    Type: String
+    Default: "idp-example"
+    Description: Unique Auth Name for Cognito Resources
+
+  CallbackURL:
+    Type: String
+    Default: "https://FIXME"
+    Description: The callback url, this will be the url for the chalice idp
+
+# lifted from https://gist.github.com/singledigit/2c4d7232fa96d9e98a3de89cf6ebe7a5
+Resources:
+  # Creates a role that allows Cognito to send SNS messages
+  SNSRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "cognito-idp.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "CognitoSNSPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "sns:publish"
+                Resource: "*"
+
+  # Creates a user pool in cognito for your app to auth against
+  # This example requires MFA and validates the phone number to use as MFA
+  # Other fields can be added to the schema
+  UserPool:
+    Type: "AWS::Cognito::UserPool"
+    Properties:
+      UserPoolName: !Sub ${AuthName}-user-pool
+      AutoVerifiedAttributes:
+        - phone_number
+        - email
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: False
+      Policies:
+        PasswordPolicy:
+          # FIXME: REMOVE
+          MinimumLength: 6
+          RequireNumbers: False
+          RequireSymbols: False
+          RequireUppercase: False
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: True
+      MfaConfiguration: "OPTIONAL"
+      SmsConfiguration:
+        ExternalId: !Sub ${AuthName}-external
+        SnsCallerArn: !GetAtt SNSRole.Arn
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: false
+          Required: true
+        - Name: family_name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: given_name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${AuthName}
+      UserPoolId: !Ref UserPool
+
+  # Creates a User Pool Client to be used by the identity pool
+  UserPoolClient:
+    Type: "AWS::Cognito::UserPoolClient"
+    Properties:
+      ClientName: !Sub ${AuthName}-idp
+      GenerateSecret: true
+      PreventUserExistenceErrors: "ENABLED"
+      UserPoolId: !Ref UserPool
+      AllowedOAuthFlowsUserPoolClient: True
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Sub ${CallbackURL}
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      AllowedOAuthScopes:
+        - aws.cognito.signin.user.admin
+
+  PermitVLAN1:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: "Permit 10.1.0.0/16"
+      GroupName: PermitVLAN1
+      UserPoolId: !Ref UserPool
+
+  PermitVLAN2:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      Description: "Permit 10.2.0.0/16"
+      GroupName: PermitVLAN2
+      UserPoolId: !Ref UserPool
+
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: "UserPool::Id"
+  UserPooldomainId:
+    Value: !Ref UserPoolDomain
+    Export:
+      Name: "UserPoolDomain::Name"
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Export:
+      Name: "UserPoolClient::Id"

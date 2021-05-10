@@ -1,0 +1,27 @@
+@startuml
+Actor "Actor's VPN Client (desktop)" as client
+participant "Client VPN App" as clientvpn
+participant "Actor's Browser" as browser
+participant "SAML IdP (Lambda)" as idp
+participant "Cognito" as cognito
+
+
+
+client -> clientvpn: connection request
+clientvpn -> browser: SAML request
+browser -> idp: post SAML session
+idp -> browser: redirect cognito login
+browser -> cognito: authenticate via auth portal 
+cognito -> browser: redirect to idp
+browser -> idp: post cognito token response (after a #)
+idp -> browser: page with scripted redirect with token visible to idp
+browser -> idp: redirect with visible token
+idp -> cognito: lookup user with token
+cognito -> idp: user data
+idp -> cognito: lookup user/group membership
+cognito -> idp: user groups
+idp -> idp: transform cognito responses to SAML
+idp -> browser: redirect to SAML response form
+browser -> clientvpn: post SAML response
+clientvpn -> client: start vpn
+@enduml

@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ClientVPN
+
+Resources:
+  VPNIDP:
+    Type: AWS::IAM::SAMLProvider
+    Properties:
+      Name: !Sub ${FederationName}
+      SamlMetadataDocument: {Ref: FederationXML}
+
+  VPNSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permit VPN to talk to site networks
+      GroupName: ClientVPNSecurityGroup
+      Tags:
+        - Key: Name
+          Value: ClientVPNSecurityGroup
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+      - IpProtocol: "-1"
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: "-1"
+        CidrIp: 192.168.0.0/16
+      - IpProtocol: "-1"
+        CidrIp: 172.16.0.0/12
+      SecurityGroupEgress:
+      - IpProtocol: "-1"
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: "-1"
+        CidrIp: 192.168.0.0/16
+      - IpProtocol: "-1"
+        CidrIp: 172.16.0.0/12
+      - IpProtocol: "UDP"
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 1.1.1.1/32
+      - IpProtocol: "UDP"
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 8.8.8.8/32
+
+  VPNLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: VPNLogGroup
+      RetentionInDays: 30
+
+  VPNLogStream:
+    Type: AWS::Logs::LogStream
+    DependsOn:
+      - VPNLogGroup
+    Properties:
+      LogGroupName: !Ref VPNLogGroup
+      LogStreamName: VPNLogStream
+
+  VPNEndpoint:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties:
+      AuthenticationOptions:
+      - Type: "federated-authentication"
+        FederatedAuthentication:
+          SAMLProviderArn: !Ref VPNIDP
+          SelfServiceSAMLProviderArn: !Ref VPNIDP
+
+      ClientCidrBlock: "172.31.0.0/16"
+      ConnectionLogOptions:
+        Enabled: false
+      Description: "ClientVPN Endpoint"
+      DnsServers:
+        - "1.1.1.1"
+        - "8.8.8.8"
+      ServerCertificateArn: {Ref: EndpiontCertificateArn}
+      SplitTunnel: false
+      ConnectionLogOptions:
+        CloudwatchLogGroup: {Ref: VPNLogGroup}
+        CloudwatchLogStream: {Ref: VPNLogStream}
+        Enabled: true
+      TagSpecifications:
+        - ResourceType: "client-vpn-endpoint"
+          Tags:
+          - Key: "Name"
+            Value: "ClientVPN Endpoint"
+      TransportProtocol: "udp"
+      VpnPort: 443
+      SelfServicePortal: enabled
+      VpcId: !Ref VPCId
+      SecurityGroupIds:
+        - !Ref VPNSecurityGroup
+
+  VPNEndpointSubnetAssociation1:
+    DependsOn: VPNEndpoint
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref VPNEndpoint
+      SubnetId: !Ref PublicSubnet1
+
+  VPNEndpointSubnetRoute1:
+    DependsOn: VPNEndpointSubnetAssociation1
+    Type: AWS::EC2::ClientVpnRoute
+    Properties:
+      ClientVpnEndpointId: !Ref VPNEndpoint
+      Description: OnPrem 10.0.0.0/8 Network Via PublicSubnet1
+      DestinationCidrBlock: 10.0.0.0/8
+      TargetVpcSubnetId: !Ref PublicSubnet1
+
+  PermitVLAN1:
+    Type: "AWS::EC2::ClientVpnAuthorizationRule"
+    Properties:
+      ClientVpnEndpointId: !Ref VPNEndpoint
+      AccessGroupId: PermitVLAN1
+      TargetNetworkCidr: "10.1.0.0/16"
+      Description: "PermitVLAN1 to 10.1.0.0/16"
+
+  PermitVLAN2:
+    Type: "AWS::EC2::ClientVpnAuthorizationRule"
+    Properties:
+      ClientVpnEndpointId: !Ref VPNEndpoint
+      AccessGroupId: PermitVLAN2
+      TargetNetworkCidr: "10.2.0.0/16"
+      Description: "PermitVLAN1 to 10.2.0.0/16"
+
+
+Parameters:
+  Stage: {Type: String, Default: ''}
+
+  EndpointCertificateArn:
+    Type: String
+    Description: The Certificate ARN for the ClientVPN Endpoint
+
+  CallbackURL:
+    Type: String
+    Default: "https://FIXME"
+    Description: The callback url, this will be the url for the chalice idp
+
+  FederationName:
+    Type: String
+    Default: VPNIDP
+    Description: Name of SAML provider being created in IAM
+
+  FederationXML:
+    Type: String
+
+  VPCId:
+    Type: String
+
+  PublicSubnet1:
+    Type: String
