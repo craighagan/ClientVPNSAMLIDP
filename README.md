@@ -16,7 +16,7 @@ modules to use virtualenv
 
 ##  AWS Account Credentials
 
-You will need to have AWS Account Credentials
+You will need to have AWS Account Credentials and default region
 Configured, whether with environment variables,
 a ~/.aws/config file, or something else.
 
@@ -51,7 +51,13 @@ and subnet id to match your vpc and subnet.
 
 edit "make-cognito.sh" and "update-cognito.sh" and update the region
 
+### Confirm no more FIXMEs in the shell scripts
 
+```
+grep FIXME *sh
+```
+
+if you see any, edit the file and supply correct values
 
 ## prep python dependencies
 
@@ -93,11 +99,14 @@ chalice deploy
 ./make-cognito.sh
 ```
 
+wait for the cloudformation stack to complete creation
+
 ## grab data from cognito stack
 
 ### record variables for the app
 
 ```
+export AWS_DEFAULT_REGION=<your region name>
 python ./recordresources.py --stack-name=Cognito
 ```
 
@@ -131,11 +140,15 @@ the cognito stack to have matching groups.
 ./update-cognito.sh
 ```
 
+wait for the cloudformation stack to complete update
+
 ## deploy the clientvpn stack
 
 ```
 ./make-clientvpn.sh
 ```
+
+wait for the cloudformation stack to complete creation
 
 ## Add users
 
