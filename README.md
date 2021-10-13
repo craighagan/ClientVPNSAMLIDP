@@ -1,5 +1,7 @@
 # Integrating AWS ClientVPN with Cognito User Pools as a SAML IDP
 
+This enables using a Cognito user pool to authenticate users to AWS ClientVPN.
+
 This package implementes an python/chalice SAML IDP which enables AWS ClientVPN
 to integrate with a Cognito User Pool for authentication. This uses the native
 Cognito login ui/workflow allowing MFA and other authentication mechanisms
